@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EV Dashboard</title>
+  <!-- Include Chart.js from CDN for the energy consumption chart -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* Global Reset/Box Sizing */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: #0F172A; /* Dark background */
+      color: #ffffff;
+      font-family: Arial, sans-serif;
+    }
+
+    .dashboard-container {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(200px, 1fr));
+      grid-gap: 20px;
+      padding: 20px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background-color: #1E293B; /* Slightly lighter dark background */
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    .card h3 {
+      margin-bottom: 10px;
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: #21E064; /* Green accent */
+    }
+
+    .card p, .card span {
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    /* Let some cards span multiple columns if needed */
+    .span-2 {
+      grid-column: span 2;
+    }
+    .span-3 {
+      grid-column: span 3;
+    }
+    .span-4 {
+      grid-column: span 4;
+    }
+
+    /* Example style for "labels" or "status indicators" */
+    .status-label {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background-color: #21E064;
+      color: #0F172A;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+
+    .battery-percentage {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #21E064;
+    }
+
+    .button-group {
+      margin-top: 10px;
+    }
+
+    .button-group button {
+      background-color: #21E064;
+      color: #0F172A;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      margin-right: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    /* Speed gauge style */
+    .speed-gauge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .speed-value {
+      font-size: 3rem;
+      font-weight: bold;
+      margin: 10px 0;
+      color: #21E064;
+    }
+    .meter-range {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-bottom: 10px;
+    }
+
+    /* Battery bar style from old code */
+    .battery-bar {
+      width: 100%;
+      height: 10px;
+      background: #334155;
+      border-radius: 5px;
+      margin: 10px 0;
+      position: relative;
+    }
+    .battery-level {
+      height: 100%;
+      border-radius: 5px;
+      background: #21E064;
+      width: 0%;
+      transition: width 0.5s ease, background 0.5s ease;
+    }
+
+    /* Example table style (e.g. for trip info or hardware status) */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    table tr {
+      border-bottom: 1px solid #334155;
+    }
+    table td {
+      padding: 8px 0;
+      font-size: 0.9rem;
+    }
+
+    /* Chart canvas styling */
+    #energyChart {
+      width: 100%;
+      max-height: 250px;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 900px) {
+      .dashboard-container {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .dashboard-container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center; color: #21E064; margin-top: 20px;">EV Dashboard</h1>
+  <div class="dashboard-container">
+
+    <!-- Battery Status Card -->
+    <div class="card">
+      <h3>Battery Status</h3>
+      <div class="speed-gauge">
+        <div class="speed-value" id="battery-percentage">0</div>
+        <div class="meter-range">0 - 100%</div>
+      </div>
+      <div class="battery-bar">
+        <div id="battery-level" class="battery-level"></div>
+      </div>
+      <p>Voltage: <strong><span id="voltage">0</span>V</strong></p>
+      <p>Estimated Range: <strong id="estimated-range">0 km</strong></p>
+      <p>Charge Status: <span class="status-label" id="charge-status">Not Charging</span></p>
+      <button id="charge-button">Start Charging</button>
+    </div>
+
+    <!-- Energy Consumption (Chart) -->
+    <div class="card span-2">
+      <h3>Energy Consumption</h3>
+      <canvas id="energyChart"></canvas>
+      <p>Current Efficiency: <strong>0.0 kWh/100km</strong></p>
+      <p>Average Efficiency: <strong>17.3 kWh/100km</strong></p>
+    </div>
+
+    <!-- Speed Gauge -->
+    <div class="card">
+      <h3>Speed</h3>
+      <div class="speed-gauge">
+        <div class="speed-value">0</div>
+        <div class="meter-range">0 - 200 km/h</div>
+        <div class="button-group">
+          <button>Slow</button>
+          <button>Medium</button>
+          <button>High</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Driving Controls -->
+    <div class="card">
+      <h3>Driving Controls</h3>
+      <p>Driving Mode: <strong>Eco</strong></p>
+      <p>Regenerative Braking: <strong>Level 3</strong></p>
+      <p>Energy Efficiency: <strong>High</strong></p>
+    </div>
+
+    <!-- Safety Controls -->
+    <div class="card">
+      <h3>Safety Controls</h3>
+      <p>Tire Pressure: <strong>PSI 32/32</strong></p>
+      <p>ABS: <strong>Active</strong></p>
+      <p>Airbags: <strong>Ready</strong></p>
+      <p>Traction Control: <strong>Enabled</strong></p>
+    </div>
+
+    <!-- Trip Information -->
+    <div class="card">
+      <h3>Trip Information</h3>
+      <p>Total Mileage: <strong>25,230 km</strong></p>
+      <p>Trip Mileage: <strong>120 km</strong></p>
+      <p>Next Charging: <strong>Unknown</strong></p>
+      <p>Navigation: <strong>Off</strong></p>
+      <p>Destination: <strong>N/A</strong></p>
+    </div>
+
+    <!-- Hardware Status -->
+    <div class="card">
+      <h3>Hardware Status</h3>
+      <table>
+        <tr>
+          <td>Temperature:</td>
+          <td>25°C</td>
+        </tr>
+        <tr>
+          <td>Battery:</td>
+          <td>Good</td>
+        </tr>
+        <tr>
+          <td>Motor Temperature:</td>
+          <td>40°C</td>
+        </tr>
+        <tr>
+          <td>Brake Fluid:</td>
+          <td>OK</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Climate & Comfort -->
+    <div class="card">
+      <h3>Climate & Comfort</h3>
+      <p>Cabin Temperature: <strong>21°C</strong></p>
+      <p>AC: <strong>Auto</strong></p>
+      <p>Fan: <strong>Level 2</strong></p>
+      <p>Seat Heating: <strong>Off</strong></p>
+    </div>
+
+    <!-- Eco Statistics -->
+    <div class="card">
+      <h3>Eco Statistics</h3>
+      <p>Lifetime Savings: <strong>1,245</strong> kg CO₂</p>
+      <p>Fuel Cost Saved: <strong>$350</strong></p>
+      <p>Tree Equivalent: <strong>85</strong> planted</p>
+    </div>
+  </div>
+
+  <script>
+    // Sample data for the chart
+    const ctx = document.getElementById('energyChart').getContext('2d');
+    const energyChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        datasets: [{
+          label: 'kWh/100km',
+          data: [20, 18, 22, 17, 19, 16, 21],
+          borderColor: '#21E064',
+          backgroundColor: 'rgba(33, 224, 100, 0.1)',
+          tension: 0.2,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: '#ffffff'
+            },
+            grid: {
+              color: '#334155'
+            }
+          },
+          x: {
+            ticks: {
+              color: '#ffffff'
+            },
+            grid: {
+              color: '#334155'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              color: '#ffffff'
+            }
+          }
+        }
+      }
+    });
+
+    // Battery status functionality from old code
+    function updateBatteryData() {
+      fetch('/latest-data')
+        .then(response => response.json())
+        .then(data => {
+          // Update voltage
+          document.getElementById('voltage').innerText = data.voltage || '0';
+          
+          // Update battery percentage
+          const percentage = data.percentage || 0;
+          document.getElementById('battery-percentage').innerText = percentage;
+          document.getElementById('battery-level').style.width = percentage + '%';
+          
+          // Update estimated range (assuming 1% = 1km for demo)
+          document.getElementById('estimated-range').innerText = percentage + ' km';
+          
+          // Update charge status if available
+          if (data.charging !== undefined) {
+            const chargeStatus = document.getElementById('charge-status');
+            const chargeButton = document.getElementById('charge-button');
+            if (data.charging) {
+              chargeStatus.innerText = 'Charging';
+              chargeStatus.style.backgroundColor = '#21E064';
+              chargeButton.innerText = 'Stop Charging';
+            } else {
+              chargeStatus.innerText = 'Not Charging';
+              chargeStatus.style.backgroundColor = '#21E064';
+              chargeButton.innerText = 'Start Charging';
+            }
+          }
+
+          // Change color based on battery level
+          let batteryColor = "#21E064"; // Green
+          if (percentage < 20) {
+            batteryColor = "#EF4444"; // Red
+          } else if (percentage < 50) {
+            batteryColor = "#F59E0B"; // Orange
+          }
+          document.getElementById('battery-level').style.background = batteryColor;
+          document.getElementById('battery-percentage').style.color = batteryColor;
+        })
+        .catch(error => console.error('Error fetching battery data:', error));
+    }
+
+    // Toggle charging status
+    document.getElementById('charge-button').addEventListener('click', function() {
+      const chargeStatus = document.getElementById('charge-status');
+      const chargeButton = document.getElementById('charge-button');
+      
+      if (chargeStatus.innerText === 'Not Charging') {
+        chargeStatus.innerText = 'Charging';
+        chargeButton.innerText = 'Stop Charging';
+        // Here you would typically send a request to start charging
+      } else {
+        chargeStatus.innerText = 'Not Charging';
+        chargeButton.innerText = 'Start Charging';
+        // Here you would typically send a request to stop charging
+      }
+    });
+
+    // Fetch new data every 2 seconds
+    setInterval(updateBatteryData, 2000);
+
+    // Fetch immediately on page load
+    updateBatteryData();
+  </script>
+</body>
+</html>
